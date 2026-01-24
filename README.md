@@ -35,7 +35,7 @@ pip install -r requirements.txt
 ## 3. Project Structure
 
 - **data/raw**: Original ECG5000 TRAIN/TEST `.txt` files (5-class labels).
-- **data/processed**: Processed binary datasets (`BINARY_*.txt`) used for Normal vs Abnormal classification.
+- **data/processed**: Processed binary datasets ECG5000 TRAIN/TEST `.txt` used for Normal vs Abnormal classification.
 - **notebooks/01_data_exploration.ipynb**: Dataset exploration and sanity checks.
 - **notebooks/02_main.ipynb**: Main experiments (training, evaluation, plots).
 - **src/dataset.py**: `ECGDataset`, PyTorch dataloaders, and helper to create the binary dataset from raw files.
