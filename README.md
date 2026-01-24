@@ -34,18 +34,12 @@ pip install -r requirements.txt
 
 ## 3. Project Structure
 
-ECG5000_Project/
-├─ data/
-│  ├─ raw/                    # Original ECG5000 TRAIN/TEST txt files (5-class labels)
-│  └─ processed/              # Derived binary datasets (BINARY_*.txt)
-├─ notebooks/
-│  ├─ 01_data_exploration.ipynb
-│  └─ 02_main.ipynb           # Main experiments: training + evaluation + plots
-├─ src/
-│  ├─ dataset.py              # ECGDataset, dataloaders, raw→binary preprocessing helper
-│  ├─ utils.py                # train/eval loop, metrics, latency, plotting, Legendre matrices
-│  └─ models/
-│     ├─ lstm.py              # BaselineLSTM
-│     └─ reservoirs.py        # RandomLSM and StructuredLSNN (Legendre-feature + spiking readout)
-├─ requirements.txt
-└─ README.md
+- **data/raw**: Original ECG5000 TRAIN/TEST `.txt` files (5-class labels).
+- **data/processed**: Processed binary datasets (`BINARY_*.txt`) used for Normal vs Abnormal classification.
+- **notebooks/01_data_exploration.ipynb**: Dataset exploration and sanity checks.
+- **notebooks/02_main.ipynb**: Main experiments (training, evaluation, plots).
+- **src/dataset.py**: `ECGDataset`, PyTorch dataloaders, and helper to create the binary dataset from raw files.
+- **src/utils.py**: Training/evaluation utilities, metrics, latency measurement, plotting, and Legendre (LDN) matrices.
+- **src/models/lstm.py**: Baseline LSTM model (`BaselineLSTM`).
+- **src/models/reservoirs.py**: Reservoir-based spiking models (`RandomLSM`, `StructuredLSNN`).
+- **requirements.txt**: Python dependencies.
