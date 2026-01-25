@@ -1,7 +1,7 @@
 import torch
 import time
 import numpy as np
-from tqdm import tqdm
+from tqdm.auto import tqdm 
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -13,93 +13,74 @@ def train_model(model, train_loader, test_loader, device='cpu', epochs=10, lr=0.
     model = model.to(device)
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    
+
     history = {'train_loss': [], 'test_acc': [], 'train_time': 0}
-    
-    print(f"Starting training on {device}...")
+
     start_train = time.time()
-    
-    for epoch in tqdm(range(epochs), desc="Epochs"):
+
+    epoch_bar = tqdm(range(epochs), desc="Training", dynamic_ncols=True)
+    for epoch in epoch_bar:
         model.train()
         running_loss = 0.0
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
-        
-        for data, labels in pbar:
-            data, labels = data.to(device), labels.to(device)
-            
-            # Forward pass
-            outputs = model(data)
 
+        batch_bar = tqdm(train_loader, leave=False, dynamic_ncols=True)
+        for data, labels in batch_bar:
+            data, labels = data.to(device), labels.to(device)
+
+            outputs = model(data)
             if isinstance(outputs, tuple):
-                outputs = outputs[0]  # Take just the class predictions, ignore spikes
+                outputs = outputs[0]
 
             loss = criterion(outputs, labels)
-            
-            # Backward pass
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             running_loss += loss.item()
-            
-        # Logging
+            batch_bar.set_postfix(loss=f"{loss.item():.4f}")
+
         avg_loss = running_loss / len(train_loader)
         history['train_loss'].append(avg_loss)
-        
-        # Quick validation
-        test_acc = evaluate_accuracy(model, test_loader, device)
+
+        test_acc = evaluate_accuracy(model, test_loader, device, show_progress=False)
         history['test_acc'].append(test_acc)
-        
-        tqdm.write(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.4f}, Test Acc: {test_acc:.2f}%")
-        
-    end_train = time.time()
-    history['train_time'] = end_train - start_train
-    tqdm.write(f"Training finished in {history['train_time']:.2f} seconds.")
-    
+
+        epoch_bar.set_postfix(loss=f"{avg_loss:.4f}", acc=f"{test_acc:.2f}%")
+
+    history['train_time'] = time.time() - start_train
+    epoch_bar.close()
     return model, history
 
-def evaluate_accuracy(model, loader, device):
+def evaluate_accuracy(model, loader, device, show_progress=False):
+    """
+    Generic evaluation function for both LSTM and SNN.
+    Returns: accuracy (float)
+    """
+    was_training = model.training
     model.eval()
+
     correct = 0
     total = 0
+
     with torch.no_grad():
-        for data, labels in tqdm(loader, desc="Evaluating", leave=False):
+        it = loader
+        if show_progress:
+            it = tqdm(loader, desc="Evaluating", leave=False, dynamic_ncols=True)
+
+        for data, labels in it:
             data, labels = data.to(device), labels.to(device)
             outputs = model(data)
             if isinstance(outputs, tuple):
-                outputs = outputs[0]  # Take just the class predictions, ignore spikes
+                outputs = outputs[0]
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    return 100 * correct / total
 
-def measure_inference_latency(model, loader, device):
-    """
-    Measures how long it takes to process ONE sample (in milliseconds).
-    Used for the LSTM efficiency metric.
-    """
-    model = model.to(device)
-    model.eval()
-    
-    # Warm up GPU/CPU
-    dummy_input, _ = next(iter(loader))
-    dummy_input = dummy_input.to(device)
-    _ = model(dummy_input)
-    
-    start_time = time.time()
-    total_samples = 0
-    
-    with torch.no_grad():
-        for data, _ in tqdm(loader, desc="Measuring latency", leave=False):
-            data = data.to(device)
-            _ = model(data)
-            total_samples += data.size(0)
-            
-    end_time = time.time()
-    total_time = end_time - start_time
-    
-    latency_ms = (total_time / total_samples) * 1000
-    return latency_ms
+    if was_training:
+        model.train()
+
+    return 100 * correct / total
 
 def get_legendre_matrices(d, theta, dt=1.0):
     """
@@ -270,3 +251,76 @@ def compare_models_latency(model_dict, sample, device="cpu", repeats=200, warmup
         print(f"{name}: {ms:.3f} ms / sample")
     print(f"Fastest: {results[0][0]}")
     return results
+
+def get_sparsity_metric(model, loader, device):
+    """
+    Counts the number of spikes per sample for spiking models.
+    Returns: average spikes per sample (float)
+    """
+    model.eval()
+    total_spikes = 0
+    total_samples = 0
+    
+    with torch.no_grad():
+        for data, _ in loader:
+            data = data.to(device)
+            # Forward pass
+            _, spikes = model(data)
+            
+            # Count all spikes in the batch
+            total_spikes += spikes.sum().item()
+            total_samples += data.size(0)
+            
+    # Average spikes per single sample inference
+    avg_spikes = total_spikes / total_samples
+    return avg_spikes
+
+def get_detailed_spike_metrics(model, loader, device):
+    model = model.to(device)
+    model.eval()
+    
+    total_spikes = 0
+    total_samples = 0
+    
+    # Get architecture details for "Max Possible" calc
+    # Assuming model has 'hidden_size' or we can infer it from output shape
+    # Ideally, pass these or inspect model structure. 
+    # For now, we will calculate 'active_elements' dynamically.
+    
+    total_possible_events = 0 # (Neurons * TimeSteps * Samples)
+
+    with torch.no_grad():
+        for data, _ in loader:
+            data = data.to(device)
+            # Forward pass
+            _, spikes = model(data) # Spikes shape: [Batch, Time, Neurons]
+            
+            # 1. Total Spikes (Your current metric)
+            batch_spikes = spikes.sum().item()
+            total_spikes += batch_spikes
+            
+            # 2. Tracking counts for averages
+            batch_size = data.size(0)
+            total_samples += batch_size
+            
+            # 3. Max Possible (Batch * Time * Neurons)
+            total_possible_events += spikes.numel()
+
+    # --- METRICS ---
+    
+    # Metric A: Spikes per Sample (The "Energy" Metric) - PRIMARY
+    spikes_per_sample = total_spikes / total_samples
+    
+    # Metric B: Spike Density / Activity Rate (0.0 to 1.0)
+    # How active is the brain? (e.g., 0.05 means neurons fire 5% of the time)
+    spike_density = total_spikes / total_possible_events
+    
+    # Metric C: Sparsity (%)
+    # In literature, "95% sparsity" usually means 95% SILENCE.
+    sparsity_percentage = (1.0 - spike_density) * 100.0
+
+    return {
+        "spikes_per_sample": f"{spikes_per_sample:.1f}", # Use this for your Bar Chart
+        "sparsity_percent": f"{sparsity_percentage:.1f}", # Use this for text discussion
+        "spike_density": f"{spike_density:.1f}"
+    }

@@ -38,6 +38,7 @@ pip install -r requirements.txt
 - **data/processed**: Processed binary datasets ECG5000 TRAIN/TEST `.txt` used for Normal vs Abnormal classification.
 - **notebooks/01_data_exploration.ipynb**: Dataset exploration and sanity checks.
 - **notebooks/02_main.ipynb**: Main experiments (training, evaluation, plots).
+- **notebooks/03_grid_search.ipynb**: Hyperparameter search.
 - **src/dataset.py**: `ECGDataset`, PyTorch dataloaders, and helper to create the binary dataset from raw files.
 - **src/utils.py**: Training/evaluation utilities, metrics, latency measurement, plotting, and Legendre (LDN) matrices.
 - **src/models/lstm.py**: Baseline LSTM model (`BaselineLSTM`).

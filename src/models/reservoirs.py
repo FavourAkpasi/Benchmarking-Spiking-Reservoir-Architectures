@@ -32,21 +32,27 @@ class RandomLSM(nn.Module):
         self.readout = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
-        # x: [Batch, Time, Input]
         batch_size, time_steps, _ = x.size()
+        
+        # Initialize Membrane Potential AND Spike state
         mem = torch.zeros(batch_size, self.hidden_size).to(x.device)
+        spk = torch.zeros(batch_size, self.hidden_size).to(x.device)
+        
         spk_rec = []
         
         for step in range(time_steps):
             xt = x[:, step, :]
-            # Current = Input + Recurrent Echo
-            cur = self.input_layer(xt) + self.recurrent_layer(mem)
+            
+            # Use 'spk' for recurrence (spiking state)
+            cur = self.input_layer(xt) + self.recurrent_layer(spk) 
+            
+            # Run the neuron
             spk, mem = self.lif(cur, mem)
             spk_rec.append(spk)
             
         spk_rec = torch.stack(spk_rec, dim=1)
         
-        # Classification on Mean Firing Rate
+        # Classification
         rate = spk_rec.mean(dim=1)
         out = self.readout(rate)
         return out, spk_rec
