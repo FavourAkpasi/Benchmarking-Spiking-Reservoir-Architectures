@@ -252,40 +252,22 @@ def compare_models_latency(model_dict, sample, device="cpu", repeats=200, warmup
     print(f"Fastest: {results[0][0]}")
     return results
 
-def get_sparsity_metric(model, loader, device):
+def get_detailed_spike_metrics(model, loader, device):
     """
     Counts the number of spikes per sample for spiking models.
-    Returns: average spikes per sample (float)
+    Returns: dictionary with the following keys:
+    {
+        "spikes_per_sample": f"{spikes_per_sample:.1f}",
+        "sparsity_percent": f"{sparsity_percentage:.1f}",
+        "spike_density": f"{spike_density:.1f}"
+    }
     """
-    model.eval()
-    total_spikes = 0
-    total_samples = 0
-    
-    with torch.no_grad():
-        for data, _ in loader:
-            data = data.to(device)
-            # Forward pass
-            _, spikes = model(data)
-            
-            # Count all spikes in the batch
-            total_spikes += spikes.sum().item()
-            total_samples += data.size(0)
-            
-    # Average spikes per single sample inference
-    avg_spikes = total_spikes / total_samples
-    return avg_spikes
-
-def get_detailed_spike_metrics(model, loader, device):
     model = model.to(device)
     model.eval()
     
     total_spikes = 0
     total_samples = 0
-    
-    # Get architecture details for "Max Possible" calc
-    # Assuming model has 'hidden_size' or we can infer it from output shape
-    # Ideally, pass these or inspect model structure. 
-    # For now, we will calculate 'active_elements' dynamically.
+
     
     total_possible_events = 0 # (Neurons * TimeSteps * Samples)
 
@@ -312,15 +294,13 @@ def get_detailed_spike_metrics(model, loader, device):
     spikes_per_sample = total_spikes / total_samples
     
     # Metric B: Spike Density / Activity Rate (0.0 to 1.0)
-    # How active is the brain? (e.g., 0.05 means neurons fire 5% of the time)
     spike_density = total_spikes / total_possible_events
     
     # Metric C: Sparsity (%)
-    # In literature, "95% sparsity" usually means 95% SILENCE.
     sparsity_percentage = (1.0 - spike_density) * 100.0
 
     return {
-        "spikes_per_sample": f"{spikes_per_sample:.1f}", # Use this for your Bar Chart
-        "sparsity_percent": f"{sparsity_percentage:.1f}", # Use this for text discussion
+        "spikes_per_sample": f"{spikes_per_sample:.1f}",
+        "sparsity_percent": f"{sparsity_percentage:.1f}",
         "spike_density": f"{spike_density:.1f}"
     }

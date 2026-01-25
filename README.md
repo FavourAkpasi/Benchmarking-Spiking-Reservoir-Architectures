@@ -44,3 +44,4 @@ pip install -r requirements.txt
 - **src/models/lstm.py**: Baseline LSTM model (`BaselineLSTM`).
 - **src/models/reservoirs.py**: Reservoir-based spiking models (`RandomLSM`, `StructuredLSNN`).
 - **requirements.txt**: Python dependencies.
+- **Report.pdf**: experiment report
